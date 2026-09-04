@@ -130,9 +130,9 @@ In Stage 7, I generated an alternative implementation of the Task API using Clau
 
 | Feature / Aspect | My Hand-Written Implementation | Claude's AI Implementation |
 | :--- | :--- | :--- |
-| **Code Structure** | Single-file monolith (`index.js`), keeping routes, logic, and state in one place. | Modular architecture split across `app.js`, `server.js`, `tasks.js`, `taskStore.js`, `validators.js`, and `openapi.js`. |
+| **Code Structure** | Single-file monolith (`server.js`), keeping routes, logic, and state in one place. | Modular architecture split across `app.js`, `server.js`, `tasks.js`, `taskStore.js`, `validators.js`, and `openapi.js`. |
 | **OpenAPI Spec** | Reads `openapi.json` from disk using Node's `fs.readFileSync`. | Exports a JavaScript object directly from `openapi.js`. |
-| **ID Generation** | Uses `Math.max(...tasks.map(t => t.id)) + 1`. | Uses a module-scoped auto-incrementing counter (`let nextId = 1`). |
+| **ID generation** | `Math.max(...tasks.map(t => t.id)) + 1` — derived from existing data on every insert. | Module-scoped auto-incrementing counter (`let nextId = 1`). |
 | **Error Handling** | Basic manual checks in route handlers. | Custom middleware handling malformed JSON (`SyntaxError`), non-existent routes (JSON 404), and global 500 errors. |
 
 ---
@@ -141,7 +141,7 @@ In Stage 7, I generated an alternative implementation of the Task API using Clau
 
 1. **What did the AI do better — and do you understand its version well enough to explain it?**
    * **Modular Architecture:** Claude decoupled the app into isolated layers (validation, data store, routes, and server startup). I understand this well: splitting `app.js` from `server.js` allows unit testing without binding a port, while `taskStore.js` encapsulates the state so calling `store.reset()` isolates test suites.
-   * **Auto-increment ID logic:** Using a `nextId` counter prevents ID collisions (e.g., deleting task 2 and inserting a new task no longer duplicates or overlaps existing IDs).
+   * **ID generation trade-off:** Claude used a module-scoped counter, I used `Math.max` over existing ids. Both avoid collisions in a running process, but they differ on restart — a counter has to be seeded from existing data, while `Math.max` derives it every time.
    * **HTTP/REST Standards:** It automatically attached a `Location` header to `201 Created` responses and handled malformed JSON requests with a proper 400 status.
 
 2. **What did it get wrong or quietly ignore from your prompt?**
@@ -159,4 +159,4 @@ In Stage 7, I generated an alternative implementation of the Task API using Clau
 ### Prompt Iteration Rematch
 
 * **Prompt Adjustment:** *"Provide all code formatted for a flat folder structure with correct relative require paths, pre-populated seed tasks, and a single entry file `index.js`."*
-* **Result:** In the second attempt, Claude generated a crash-free single-file version with working relative imports and pre-populated default tasks, passing all 25 automated unit tests (`node --test`) on the first try.
+* **Result:** The second attempt produced a single-file version with pre-populated tasks and no nested imports, which was the main thing that broke the first version.
