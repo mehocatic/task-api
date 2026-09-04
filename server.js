@@ -1,6 +1,7 @@
 import express from 'express';
 
 const app = express();
+app.use(express.json());    
 const PORT = 3000;
 
 let tasks = [
@@ -35,6 +36,21 @@ app.get('/tasks/:id', (req, res) => {
 
   res.json(task);
 });      
+
+app.post('/tasks', (req, res) => {
+  const { title } = req.body;
+
+  if (!title || typeof title !== 'string' || title.trim() === '') {
+    return res.status(400).json({ error: 'Field "title" is required and must be a non-empty string' });
+  }
+
+  const nextId = tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) + 1 : 1;
+
+  const task = { id: nextId, title: title.trim(), done: false };
+  tasks.push(task);
+
+  res.status(201).json(task);
+});
 
 app.listen(PORT, () => {   
   console.log(`Server running on http://localhost:${PORT}`);
