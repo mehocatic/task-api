@@ -52,6 +52,58 @@ app.post('/tasks', (req, res) => {
   res.status(201).json(task);
 });
 
+
+
+//put
+
+
+app.put('/tasks/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const task = tasks.find(t => t.id === id);
+
+  if (!task) {
+    return res.status(404).json({ error: `Task ${req.params.id} not found` });
+  }
+
+  const { title, done } = req.body;
+
+  if (title === undefined && done === undefined) {
+    return res.status(400).json({ error: 'Provide at least "title" or "done"' });
+  }
+
+  if (title !== undefined) {
+    if (typeof title !== 'string' || title.trim() === '') {
+      return res.status(400).json({ error: 'Field "title" must be a non-empty string' });
+    }
+    task.title = title.trim();
+  }
+
+  if (done !== undefined) {
+    if (typeof done !== 'boolean') {
+      return res.status(400).json({ error: 'Field "done" must be a boolean' });
+    }
+    task.done = done;
+  }
+
+  res.json(task);
+});
+
+//delete
+
+app.delete('/tasks/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const exists = tasks.some(t => t.id === id);
+
+  if (!exists) {
+    return res.status(404).json({ error: `Task ${req.params.id} not found` });
+  }
+
+  tasks = tasks.filter(t => t.id !== id);
+
+  res.status(204).end();
+});
+
+
 app.listen(PORT, () => {   
   console.log(`Server running on http://localhost:${PORT}`);
 });
