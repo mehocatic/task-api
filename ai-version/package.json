@@ -1,0 +1,16 @@
+{
+  "name": "task-api",
+  "version": "1.0.0",
+  "description": "RESTful Task API with in-memory storage and Swagger UI docs",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "swagger-ui-express": "^5.0.1"
+  }
+}
