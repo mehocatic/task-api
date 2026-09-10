@@ -71,6 +71,14 @@ that moment.
 
 ![SQLite database in DB Browser](./screenshots/sqlite-db-browser.png)
 
+**Stretch — index and transaction:** there's an index on the `done` column
+(`CREATE INDEX idx_tasks_done ON tasks (done)`), which speeds up queries that
+filter by completion status - the database can jump straight to matching
+rows instead of scanning the whole table. The seed insert (three example
+tasks) is wrapped in a transaction, so it's all-or-nothing: if anything failed
+partway through, none of the three rows would be left behind, avoiding a
+half-seeded table.
+
 ## Endpoints
 
 | Method | Path         | Description    | Status codes  |
