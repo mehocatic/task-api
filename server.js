@@ -9,12 +9,6 @@ app.use(express.json());
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(openapiSpec));
 const PORT = 3000;
 
-let tasks = [
-	{ id: 1, title: "Learn Express", done: false },
-	{ id: 2, title: "Build CRUD API", done: false },
-	{ id: 3, title: "Push to GitHub", done: true },
-];
-
 app.get("/", (req, res) => {
 	res.json({
 		name: "Task API",
@@ -83,9 +77,11 @@ app.post("/tasks", (req, res) => {
 
 app.put("/tasks/:id", (req, res) => {
 	const id = Number(req.params.id);
-	const task = tasks.find((t) => t.id === id);
 
-	if (!task) {
+	// Check the task exists before doing anything else
+	const existing = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
+
+	if (!existing) {
 		return res.status(404).json({ error: `Task ${req.params.id} not found` });
 	}
 
@@ -103,16 +99,23 @@ app.put("/tasks/:id", (req, res) => {
 				.status(400)
 				.json({ error: 'Field "title" must be a non-empty string' });
 		}
-		task.title = title.trim();
 	}
 
-	if (done !== undefined) {
-		if (typeof done !== "boolean") {
-			return res.status(400).json({ error: 'Field "done" must be a boolean' });
-		}
-		task.done = done;
+	if (done !== undefined && typeof done !== "boolean") {
+		return res.status(400).json({ error: 'Field "done" must be a boolean' });
 	}
 
+	// Fall back to the existing value when a field wasn't sent in the body
+	const newTitle = title !== undefined ? title.trim() : existing.title;
+	const newDone = done !== undefined ? (done ? 1 : 0) : existing.done;
+
+	db.prepare("UPDATE tasks SET title = ?, done = ? WHERE id = ?").run(
+		newTitle,
+		newDone,
+		id,
+	);
+
+	const task = { id, title: newTitle, done: Boolean(newDone) };
 	res.json(task);
 });
 
@@ -120,17 +123,17 @@ app.put("/tasks/:id", (req, res) => {
 
 app.delete("/tasks/:id", (req, res) => {
 	const id = Number(req.params.id);
-	const exists = tasks.some((t) => t.id === id);
 
-	if (!exists) {
+	const result = db.prepare("DELETE FROM tasks WHERE id = ?").run(id);
+
+	// info.changes tells us how many rows were actually deleted -
+	// 0 means no task with that id existed
+	if (result.changes === 0) {
 		return res.status(404).json({ error: `Task ${req.params.id} not found` });
 	}
 
-	tasks = tasks.filter((t) => t.id !== id);
-
 	res.status(204).end();
 });
-
 app.listen(PORT, () => {
 	console.log(`Server running on http://localhost:${PORT}`);
 });
