@@ -27,20 +27,37 @@ app.get("/health", (req, res) => {
 	res.json({ status: "ok" });
 });
 
+//-----------------------
+
 app.get("/tasks", (req, res) => {
-	res.json(tasks);
+	// Fetch all rows from the database instead of the in-memory array
+	const rows = db.prepare("SELECT * FROM tasks").all();
+
+	// SQLite stores "done" as 0/1, so convert it back to a real boolean
+	// before sending it to the client - the API response shape stays identical
+	const result = rows.map((row) => ({ ...row, done: Boolean(row.done) }));
+
+	res.json(result);
 });
+
+//-----------------------
 
 app.get("/tasks/:id", (req, res) => {
 	const id = Number(req.params.id);
-	const task = tasks.find((t) => t.id === id);
 
-	if (!task) {
+	// Parameterized query: the "?" placeholder keeps the id separate from
+	// the SQL text, so user input can never be glued into the query string
+	const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
+
+	if (!row) {
 		return res.status(404).json({ error: `Task ${req.params.id} not found` });
 	}
 
+	const task = { ...row, done: Boolean(row.done) };
 	res.json(task);
 });
+
+//----------------------------
 
 app.post("/tasks", (req, res) => {
 	const { title } = req.body;
