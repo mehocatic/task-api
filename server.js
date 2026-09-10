@@ -68,10 +68,13 @@ app.post("/tasks", (req, res) => {
 		});
 	}
 
-	const nextId = tasks.length > 0 ? Math.max(...tasks.map((t) => t.id)) + 1 : 1;
+	// Insert the new row - SQLite assigns the id automatically (AUTOINCREMENT),
+	// so we don't calculate it ourselves anymore
+	const insert = db.prepare("INSERT INTO tasks (title, done) VALUES (?, ?)");
+	const info = insert.run(title.trim(), 0);
 
-	const task = { id: nextId, title: title.trim(), done: false };
-	tasks.push(task);
+	// info.lastInsertRowid holds the id SQLite just generated for this row
+	const task = { id: info.lastInsertRowid, title: title.trim(), done: false };
 
 	res.status(201).json(task);
 });
