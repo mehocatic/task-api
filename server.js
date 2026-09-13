@@ -146,23 +146,25 @@ app.delete("/tasks/:id", async (req, res) => {
 	}
 });
 
-initDb()
-	.then(() => {
-		app.listen(PORT, () => {
-			console.log(`Server running on http://localhost:${PORT}`);
-		});
-	})
-	.catch((err) => {
-		console.error("Database connection failed:", err);
-	});
+// Funkcija koja ceka nekoliko sekundi i pokusava ponovo dok se baza ne podigne
+async function startServerWithRetry(retries = 10, delay = 2000) {
+	for (let i = 0; i < retries; i++) {
+		try {
+			await initDb();
+			console.log("Database initialized successfully!");
+			app.listen(PORT, () => {
+				console.log(`Server running on http://localhost:${PORT}`);
+			});
+			return;
+		} catch (err) {
+			console.log(
+				`Waiting for database to be ready (attempt ${i + 1}/${retries})...`,
+			);
+			await new Promise((res) => setTimeout(res, delay));
+		}
+	}
+	console.error("CRITICAL: Database connection could not be established.");
+	process.exit(1);
+}
 
-initDb()
-	.then(() => {
-		console.log("Database initialized successfully!");
-		app.listen(PORT, () => {
-			console.log(`Server running on http://localhost:${PORT}`);
-		});
-	})
-	.catch((err) => {
-		console.error("CRITICAL: Database connection or init failed:", err);
-	});
+startServerWithRetry();
