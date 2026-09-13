@@ -1,13 +1,15 @@
 import express from "express";
 import swaggerUi from "swagger-ui-express";
 import { readFileSync } from "fs";
-import db from "./db.js";
+import pool, { initDb } from "./db.js";
+
 const openapiSpec = JSON.parse(readFileSync("./openapi.json", "utf-8"));
 
 const app = express();
 app.use(express.json());
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(openapiSpec));
-const PORT = 3000;
+
+const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
 	res.json({
@@ -17,43 +19,44 @@ app.get("/", (req, res) => {
 	});
 });
 
-app.get("/health", (req, res) => {
-	res.json({ status: "ok" });
+app.get("/health", async (req, res) => {
+	try {
+		await pool.query("SELECT 1");
+		res.json({ status: "ok", db: "ok" });
+	} catch (err) {
+		res.status(500).json({ status: "error", db: "disconnected" });
+	}
 });
 
 //-----------------------
-
-app.get("/tasks", (req, res) => {
-	// Fetch all rows from the database instead of the in-memory array
-	const rows = db.prepare("SELECT * FROM tasks").all();
-
-	// SQLite stores "done" as 0/1, so convert it back to a real boolean
-	// before sending it to the client - the API response shape stays identical
-	const result = rows.map((row) => ({ ...row, done: Boolean(row.done) }));
-
-	res.json(result);
+app.get("/tasks", async (req, res) => {
+	try {
+		const result = await pool.query("SELECT * FROM tasks ORDER BY id ASC");
+		res.json(result.rows);
+	} catch (err) {
+		res.status(500).json({ error: "Failed to fetch tasks" });
+	}
 });
 
 //-----------------------
-
-app.get("/tasks/:id", (req, res) => {
+app.get("/tasks/:id", async (req, res) => {
 	const id = Number(req.params.id);
 
-	// Parameterized query: the "?" placeholder keeps the id separate from
-	// the SQL text, so user input can never be glued into the query string
-	const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
+	try {
+		const result = await pool.query("SELECT * FROM tasks WHERE id = $1", [id]);
 
-	if (!row) {
-		return res.status(404).json({ error: `Task ${req.params.id} not found` });
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: `Task ${req.params.id} not found` });
+		}
+
+		res.json(result.rows[0]);
+	} catch (err) {
+		res.status(500).json({ error: "Failed to fetch task" });
 	}
-
-	const task = { ...row, done: Boolean(row.done) };
-	res.json(task);
 });
 
 //----------------------------
-
-app.post("/tasks", (req, res) => {
+app.post("/tasks", async (req, res) => {
 	const { title } = req.body;
 
 	if (!title || typeof title !== "string" || title.trim() === "") {
@@ -62,78 +65,104 @@ app.post("/tasks", (req, res) => {
 		});
 	}
 
-	// Insert the new row - SQLite assigns the id automatically (AUTOINCREMENT),
-	// so we don't calculate it ourselves anymore
-	const insert = db.prepare("INSERT INTO tasks (title, done) VALUES (?, ?)");
-	const info = insert.run(title.trim(), 0);
+	try {
+		const result = await pool.query(
+			"INSERT INTO tasks (title, done) VALUES ($1, $2) RETURNING *",
+			[title.trim(), false],
+		);
 
-	// info.lastInsertRowid holds the id SQLite just generated for this row
-	const task = { id: info.lastInsertRowid, title: title.trim(), done: false };
-
-	res.status(201).json(task);
+		res.status(201).json(result.rows[0]);
+	} catch (err) {
+		res.status(500).json({ error: "Failed to create task" });
+	}
 });
 
-//put
-
-app.put("/tasks/:id", (req, res) => {
+//----------------------------
+app.put("/tasks/:id", async (req, res) => {
 	const id = Number(req.params.id);
 
-	// Check the task exists before doing anything else
-	const existing = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
+	try {
+		const existingResult = await pool.query(
+			"SELECT * FROM tasks WHERE id = $1",
+			[id],
+		);
 
-	if (!existing) {
-		return res.status(404).json({ error: `Task ${req.params.id} not found` });
-	}
+		if (existingResult.rows.length === 0) {
+			return res.status(404).json({ error: `Task ${req.params.id} not found` });
+		}
 
-	const { title, done } = req.body;
+		const existing = existingResult.rows[0];
+		const { title, done } = req.body;
 
-	if (title === undefined && done === undefined) {
-		return res
-			.status(400)
-			.json({ error: 'Provide at least "title" or "done"' });
-	}
-
-	if (title !== undefined) {
-		if (typeof title !== "string" || title.trim() === "") {
+		if (title === undefined && done === undefined) {
 			return res
 				.status(400)
-				.json({ error: 'Field "title" must be a non-empty string' });
+				.json({ error: 'Provide at least "title" or "done"' });
 		}
+
+		if (title !== undefined) {
+			if (typeof title !== "string" || title.trim() === "") {
+				return res
+					.status(400)
+					.json({ error: 'Field "title" must be a non-empty string' });
+			}
+		}
+
+		if (done !== undefined && typeof done !== "boolean") {
+			return res.status(400).json({ error: 'Field "done" must be a boolean' });
+		}
+
+		const newTitle = title !== undefined ? title.trim() : existing.title;
+		const newDone = done !== undefined ? done : existing.done;
+
+		const updateResult = await pool.query(
+			"UPDATE tasks SET title = $1, done = $2 WHERE id = $3 RETURNING *",
+			[newTitle, newDone, id],
+		);
+
+		res.json(updateResult.rows[0]);
+	} catch (err) {
+		res.status(500).json({ error: "Failed to update task" });
 	}
-
-	if (done !== undefined && typeof done !== "boolean") {
-		return res.status(400).json({ error: 'Field "done" must be a boolean' });
-	}
-
-	// Fall back to the existing value when a field wasn't sent in the body
-	const newTitle = title !== undefined ? title.trim() : existing.title;
-	const newDone = done !== undefined ? (done ? 1 : 0) : existing.done;
-
-	db.prepare("UPDATE tasks SET title = ?, done = ? WHERE id = ?").run(
-		newTitle,
-		newDone,
-		id,
-	);
-
-	const task = { id, title: newTitle, done: Boolean(newDone) };
-	res.json(task);
 });
 
-//delete
-
-app.delete("/tasks/:id", (req, res) => {
+//----------------------------
+app.delete("/tasks/:id", async (req, res) => {
 	const id = Number(req.params.id);
 
-	const result = db.prepare("DELETE FROM tasks WHERE id = ?").run(id);
+	try {
+		const result = await pool.query(
+			"DELETE FROM tasks WHERE id = $1 RETURNING id",
+			[id],
+		);
 
-	// info.changes tells us how many rows were actually deleted -
-	// 0 means no task with that id existed
-	if (result.changes === 0) {
-		return res.status(404).json({ error: `Task ${req.params.id} not found` });
+		if (result.rowCount === 0) {
+			return res.status(404).json({ error: `Task ${req.params.id} not found` });
+		}
+
+		res.status(204).end();
+	} catch (err) {
+		res.status(500).json({ error: "Failed to delete task" });
 	}
+});
 
-	res.status(204).end();
-});
-app.listen(PORT, () => {
-	console.log(`Server running on http://localhost:${PORT}`);
-});
+initDb()
+	.then(() => {
+		app.listen(PORT, () => {
+			console.log(`Server running on http://localhost:${PORT}`);
+		});
+	})
+	.catch((err) => {
+		console.error("Database connection failed:", err);
+	});
+
+initDb()
+	.then(() => {
+		console.log("Database initialized successfully!");
+		app.listen(PORT, () => {
+			console.log(`Server running on http://localhost:${PORT}`);
+		});
+	})
+	.catch((err) => {
+		console.error("CRITICAL: Database connection or init failed:", err);
+	});

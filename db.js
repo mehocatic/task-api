@@ -1,37 +1,39 @@
 // db.js
-import Database from "better-sqlite3";
+import "dotenv/config";
+import pkg from "pg";
+const { Pool } = pkg;
 
-// Open tasks.db if it exists, or create it if it doesn't
-const db = new Database("tasks.db");
+const pool = new Pool({
+	connectionString: process.env.DATABASE_URL,
+});
 
-// Create the table only if it doesn't already exist
-// (IF NOT EXISTS is crucial - without it, every restart
-// would try to create the table again and crash)
-db.exec(`
-  CREATE TABLE IF NOT EXISTS tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    done INTEGER NOT NULL DEFAULT 0
-  )
-`);
-// Index on "done" - speeds up queries that filter by completion status,
-// like "WHERE done = 1", instead of scanning every row in the table
-db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_done ON tasks (done)`);
+export async function initDb() {
+	await pool.query(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      done BOOLEAN NOT NULL DEFAULT FALSE
+    );
+  `);
 
-// Seed 3 example tasks, but only if the table is empty
-const row = db.prepare("SELECT COUNT(*) AS count FROM tasks").get();
-if (row.count === 0) {
-	const insert = db.prepare("INSERT INTO tasks (title, done) VALUES (?, ?)");
+	await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_done ON tasks (done);
+  `);
 
-	// Wrap the three inserts in a transaction - either all three tasks
-	// get seeded, or none do. Without this, a crash mid-seed could leave
-	// the table with 1 or 2 tasks instead of a clean 0 or 3.
-	const seedTasks = db.transaction(() => {
-		insert.run("Learn Express", 0);
-		insert.run("Buy milk", 0);
-		insert.run("Walk the dog", 0);
-	});
+	const countRes = await pool.query("SELECT COUNT(*) AS count FROM tasks;");
+	const count = parseInt(countRes.rows[0].count, 10);
 
-	seedTasks();
+	if (count === 0) {
+		await pool.query(
+			`
+      INSERT INTO tasks (title, done) VALUES 
+      ($1, $2),
+      ($3, $4),
+      ($5, $6);
+    `,
+			["Learn Express", false, "Buy milk", false, "Walk the dog", false],
+		);
+	}
 }
-export default db;
+
+export default pool;
