@@ -16,3 +16,12 @@ The entire application stack (Node.js API + PostgreSQL database) runs with a sin
 ```bash
 docker compose up -d --build
 ```
+
+## LLM triage endpoint (FlyRank A17)
+
+Work in progress. See `JOB-CARD.md` for what the endpoint does.
+
+**Provider note:** the LLM client is configured only through three environment variables
+(`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`). Switching from a local Ollama model to a hosted
+provider means changing those three values – no code changes. That's why the provider is
+never hard-coded.
