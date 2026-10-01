@@ -204,3 +204,33 @@ call costs ~450 input + output tokens combined and runs locally in under
 half a second, so cost for 10,000 requests/day on Ollama is $0 (local
 compute only); the same volume on OpenRouter's free tier would exceed the
 50 requests/day limit by a wide margin and would need a paid plan.
+
+## Eval results
+
+8/8 hand-written cases in `evals/cases.json`, run via `node evals/run.js`.
+
+**Score: 6/8** (date: 2026-10-01, prompt version: triage-v1)
+
+Failures:
+
+1. "write API docs for the new triage endpoint" → model's output failed schema
+   validation even after the repair retry (quarantined, 422 returned).
+2. "add export to CSV button on the tasks list" → classified as "chore" instead
+   of the expected "feature". Arguably a reasonable disagreement (adding a UI
+   button is a feature; exporting data could read as maintenance/chore) rather
+   than a clear model error — a sign the test case itself could use a clearer
+   expected answer.
+
+## Cost estimate (Ollama, local)
+
+One call: ~400 input tokens, 40-550 output tokens (higher when a repair retry
+fires), 0.4-4.6s depending on whether a repair was needed. $0 per call —
+compute only, on local hardware. 10,000 requests/day would cost $0 on Ollama
+but would need real hardware to stay responsive; the same volume on
+OpenRouter's free tier (50 req/day limit) would require a paid plan.
+
+## What I'd fix with another day
+
+Classification between "feature" and "chore" is ambiguous for UI-adjacent
+changes like exports; I'd add 2-3 more few-shot examples covering that boundary
+and re-run the eval to see if the score moves.

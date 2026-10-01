@@ -1,0 +1,42 @@
+[
+	{
+		"text": "login page crashes when password field is empty, users complaining",
+		"expected_category": "bug",
+		"expected_priority": "high"
+	},
+	{
+		"text": "add dark mode toggle to settings page",
+		"expected_category": "feature",
+		"expected_priority": "normal"
+	},
+	{
+		"text": "update the README with setup instructions",
+		"expected_category": "docs",
+		"expected_priority": "low"
+	},
+	{
+		"text": "upgrade the logging library to the latest version",
+		"expected_category": "chore",
+		"expected_priority": "low"
+	},
+	{
+		"text": "server returns 500 error on every checkout attempt right now",
+		"expected_category": "bug",
+		"expected_priority": "high"
+	},
+	{
+		"text": "write API docs for the new triage endpoint",
+		"expected_category": "docs",
+		"expected_priority": "normal"
+	},
+	{
+		"text": "the thing with the stuff is weird again",
+		"expected_category": "other",
+		"expected_priority": "normal"
+	},
+	{
+		"text": "add export to CSV button on the tasks list",
+		"expected_category": "feature",
+		"expected_priority": "normal"
+	}
+]
