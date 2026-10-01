@@ -2,7 +2,7 @@ import express from "express";
 import swaggerUi from "swagger-ui-express";
 import { readFileSync } from "fs";
 import pool, { initDb } from "./db.js";
-
+import { isValidTriageResult } from "./llm/schema.js";
 const openapiSpec = JSON.parse(readFileSync("./openapi.json", "utf-8"));
 
 const app = express();
@@ -146,7 +146,44 @@ app.delete("/tasks/:id", async (req, res) => {
 	}
 });
 
-// Funkcija koja ceka nekoliko sekundi i pokusava ponovo dok se baza ne podigne
+//----------------------------
+// LLM triage endpoint (FlyRank A17). No model call yet – Stage 1 only
+// validates input and returns a stub so the contract exists on its own.
+app.post("/tasks/triage", async (req, res) => {
+	const { text } = req.body;
+
+	if (typeof text !== "string" || text.trim().length === 0) {
+		return res
+			.status(400)
+			.json({
+				error: 'Field "text" is required and must be a non-empty string',
+			});
+	}
+	if (text.length > 1000) {
+		return res
+			.status(400)
+			.json({ error: 'Field "text" must be at most 1000 characters' });
+	}
+
+	if (process.env.LLM_STUB === "1") {
+		const stub = {
+			title: text.trim().slice(0, 80),
+			category: "other",
+			priority: "normal",
+			confidence: 0.0,
+			reason: "Stub mode – no model was called.",
+		};
+		return res.json(stub);
+	}
+
+	res
+		.status(501)
+		.json({
+			error:
+				"LLM call not implemented yet (set LLM_STUB=1 to test the contract)",
+		});
+});
+
 async function startServerWithRetry(retries = 10, delay = 2000) {
 	for (let i = 0; i < retries; i++) {
 		try {
