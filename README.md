@@ -181,3 +181,17 @@ In Stage 7, I generated an alternative implementation of the Task API using Clau
 - **Directory structure:** I didn't specify file organization, so Claude chose a multi-module setup.
 - **Test suite integration:** Claude silently created helper functions (`store.reset()`) designed for automated integration tests.
 - **Port collision & extra routes:** it included an `/openapi.json` route alongside `/docs`.
+
+## LLM triage endpoint (FlyRank A17)
+
+See `JOB-CARD.md` for what the endpoint does.
+
+**Provider note:** the LLM client is configured only through three environment variables
+(`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`). Switching from a local Ollama model to a hosted
+provider means changing those three values – no code changes. That's why the provider is
+never hard-coded.
+
+**Stage 2 observation:** on an ambiguous input ("fix the thing with the login maybe idk"),
+the model classified it as "bug" with low confidence (0.4) instead of falling back to
+category "other" as the prompt instructs. The low confidence signal still works, but the
+category rule isn't followed perfectly on every ambiguous case.

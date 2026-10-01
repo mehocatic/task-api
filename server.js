@@ -3,6 +3,7 @@ import swaggerUi from "swagger-ui-express";
 import { readFileSync } from "fs";
 import pool, { initDb } from "./db.js";
 import { isValidTriageResult } from "./llm/schema.js";
+import { callTriageModel } from "./llm/client.js";
 const openapiSpec = JSON.parse(readFileSync("./openapi.json", "utf-8"));
 
 const app = express();
@@ -147,17 +148,13 @@ app.delete("/tasks/:id", async (req, res) => {
 });
 
 //----------------------------
-// LLM triage endpoint (FlyRank A17). No model call yet – Stage 1 only
-// validates input and returns a stub so the contract exists on its own.
 app.post("/tasks/triage", async (req, res) => {
 	const { text } = req.body;
 
 	if (typeof text !== "string" || text.trim().length === 0) {
-		return res
-			.status(400)
-			.json({
-				error: 'Field "text" is required and must be a non-empty string',
-			});
+		return res.status(400).json({
+			error: 'Field "text" is required and must be a non-empty string',
+		});
 	}
 	if (text.length > 1000) {
 		return res
@@ -176,12 +173,8 @@ app.post("/tasks/triage", async (req, res) => {
 		return res.json(stub);
 	}
 
-	res
-		.status(501)
-		.json({
-			error:
-				"LLM call not implemented yet (set LLM_STUB=1 to test the contract)",
-		});
+	const raw = await callTriageModel(text);
+	res.json({ raw });
 });
 
 async function startServerWithRetry(retries = 10, delay = 2000) {
