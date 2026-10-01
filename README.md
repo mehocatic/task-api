@@ -195,3 +195,12 @@ never hard-coded.
 the model classified it as "bug" with low confidence (0.4) instead of falling back to
 category "other" as the prompt instructs. The low confidence signal still works, but the
 category rule isn't followed perfectly on every ambiguous case.
+
+**Stage 4 note:** retried only timeouts, 429 and 5xx, never 400/401/403 (own
+retry policy, SDK's silent default retries disabled via `maxRetries: 0`).
+Could not test "bad API key, no retry" against Ollama, since it ignores
+`LLM_API_KEY` entirely — there is no local equivalent of a 401. One real
+call costs ~450 input + output tokens combined and runs locally in under
+half a second, so cost for 10,000 requests/day on Ollama is $0 (local
+compute only); the same volume on OpenRouter's free tier would exceed the
+50 requests/day limit by a wide margin and would need a paid plan.

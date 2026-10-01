@@ -174,6 +174,12 @@ app.post("/tasks/triage", async (req, res) => {
 		return res.json(stub);
 	}
 
+	if (process.env.LLM_ENABLED === "false") {
+		return res
+			.status(503)
+			.json({ error: "LLM triage is temporarily disabled" });
+	}
+
 	const outcome = await triage(text);
 
 	if (outcome.status === "failed") {
