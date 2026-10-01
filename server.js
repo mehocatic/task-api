@@ -3,7 +3,8 @@ import swaggerUi from "swagger-ui-express";
 import { readFileSync } from "fs";
 import pool, { initDb } from "./db.js";
 import { isValidTriageResult } from "./llm/schema.js";
-import { callTriageModel } from "./llm/client.js";
+import { triage, PROMPT_VERSION_USED } from "./llm/client.js";
+import { appendFile } from "fs/promises";
 const openapiSpec = JSON.parse(readFileSync("./openapi.json", "utf-8"));
 
 const app = express();
@@ -173,8 +174,24 @@ app.post("/tasks/triage", async (req, res) => {
 		return res.json(stub);
 	}
 
-	const raw = await callTriageModel(text);
-	res.json({ raw });
+	const outcome = await triage(text);
+
+	if (outcome.status === "failed") {
+		const quarantineLine = JSON.stringify({
+			timestamp: new Date().toISOString(),
+			input: text,
+			promptVersion: PROMPT_VERSION_USED,
+			error: outcome.error,
+			rawOutput: outcome.rawOutput,
+		});
+		await appendFile("logs/quarantine.jsonl", quarantineLine + "\n");
+		return res.status(422).json({
+			error: "Model output could not be validated",
+			detail: outcome.error,
+		});
+	}
+
+	res.json(outcome.result);
 });
 
 async function startServerWithRetry(retries = 10, delay = 2000) {
